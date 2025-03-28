@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>County Data Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    select { padding: 5px; font-size: 1rem; }
+    .card { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; margin: 1rem 0; width: 250px; display: inline-block; vertical-align: top; }
+    .chart-container { width: 100%; max-width: 600px; }
+  </style>
+</head>
+<body>
+  <h1>County Data Explorer</h1>
+  <label for="countySelect">Select County:</label>
+  <select id="countySelect"></select>
+
+  <div id="stats">
+    <div class="card"><strong>Population (2023)</strong><div id="pop"></div></div>
+    <div class="card"><strong>Labor Force Participation</strong><div id="lfpr"></div></div>
+    <div class="card"><strong>Per Capita Income</strong><div id="income"></div></div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="barChart"></canvas>
+  </div>
+
+  <script>
+    let data;
+    let selectedCounty = "Minnesota";
+
+    async function loadData() {
+      const response = await fetch("county_data.json");
+      data = await response.json();
+
+      const select = document.getElementById("countySelect");
+      const counties = [...new Set(data.income.map(d => d.County))];
+      counties.forEach(county => {
+        const option = document.createElement("option");
+        option.value = option.textContent = county;
+        select.appendChild(option);
+      });
+
+      select.value = selectedCounty;
+      select.addEventListener("change", (e) => {
+        selectedCounty = e.target.value;
+        updateStats();
+      });
+
+      updateStats();
+    }
+
+    function findCounty(section) {
+      return data[section].find(entry => entry.County?.toLowerCase() === selectedCounty.toLowerCase());
+    }
+
+    function updateStats() {
+      const income = findCounty("income");
+      const labor = findCounty("labor_force");
+
+      document.getElementById("pop").textContent = income?.["Estimate Total"]?.toLocaleString() || "N/A";
+      document.getElementById("lfpr").textContent = labor?.["Labor Force Participation Rate"] + "%" || "N/A";
+      document.getElementById("income").textContent = "$" + income?.["2023 Per Capita Income"]?.toLocaleString() || "N/A";
+
+      updateChart(labor);
+    }
+
+    let chart;
+    function updateChart(labor) {
+      const ctx = document.getElementById("barChart").getContext("2d");
+      const chartData = {
+        labels: ["Unemployment Rate", "Employment/Pop Ratio"],
+        datasets: [{
+          label: selectedCounty,
+          data: [
+            parseFloat(labor?.["Unemployment rate"] || 0),
+            parseFloat(labor?.["Employment/Population Ratio"] || 0)
+          ],
+          backgroundColor: ["#8884d8", "#82ca9d"]
+        }]
+      };
+
+      if (chart) {
+        chart.data = chartData;
+        chart.update();
+      } else {
+        chart = new Chart(ctx, {
+          type: "bar",
+          data: chartData,
+          options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
